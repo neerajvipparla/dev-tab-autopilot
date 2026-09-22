@@ -1,0 +1,9 @@
+{
+  "name": "dev-tab-autopilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sort Chrome tabs into groups using TypeSafe Jev",
+  "scripts": {
+    "test:jev": "node scripts/smoke-jev.mjs"
+  }
+}

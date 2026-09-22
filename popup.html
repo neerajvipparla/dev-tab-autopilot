@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dev Tab Autopilot</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Dev Tab Autopilot</h1>
+        <p class="sub">Sort tabs with TypeSafe Jev</p>
+      </header>
+
+      <div class="row status" id="status">Checking…</div>
+
+      <label class="mode">
+        <span>Run mode</span>
+        <select id="runMode">
+          <option value="manual">Manual</option>
+          <option value="automatic">Automatic</option>
+        </select>
+      </label>
+
+      <button id="sortBtn" class="primary">Sort this window</button>
+      <pre id="result" class="result" hidden></pre>
+
+      <footer>
+        <a href="options.html" target="_blank">Settings</a>
+        <span class="hint">⌘⇧G / Ctrl⇧G</span>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

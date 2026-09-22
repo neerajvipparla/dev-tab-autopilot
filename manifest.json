@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Dev Tab Autopilot",
+  "version": "0.1.0",
+  "description": "Sort your tabs into Code, PRs, CI, Docs and more — powered by TypeSafe Jev.",
+  "permissions": ["tabs", "tabGroups", "storage"],
+  "host_permissions": ["https://api.typesafe.ai/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Sort tabs",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "sort-tabs": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+G",
+        "mac": "Command+Shift+G"
+      },
+      "description": "Sort tabs in the current window"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

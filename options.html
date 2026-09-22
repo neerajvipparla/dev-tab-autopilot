@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dev Tab Autopilot — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Dev Tab Autopilot</h1>
+      <p class="lead">Local Chrome extension. Classification via TypeSafe Jev. Your API key stays in Chrome sync storage.</p>
+
+      <section>
+        <h2>TypeSafe API key</h2>
+        <p class="help">From <a href="https://console.typesafe.ai/settings/keys" target="_blank" rel="noreferrer">console.typesafe.ai/settings/keys</a>. Required for sorting.</p>
+        <input id="apiKey" type="password" placeholder="apikey_…" autocomplete="off" spellcheck="false" />
+      </section>
+
+      <section>
+        <h2>Run mode</h2>
+        <label class="radio"><input type="radio" name="runMode" value="manual" /> Manual — only when you click Sort or press ⌘⇧G / Ctrl⇧G</label>
+        <label class="radio"><input type="radio" name="runMode" value="automatic" /> Automatic — sort tabs shortly after they finish loading</label>
+      </section>
+
+      <section>
+        <h2>Confidence floor</h2>
+        <p class="help">Below this, tabs go to <strong>Unsorted</strong> instead of forcing a group.</p>
+        <input id="minConfidence" type="number" min="0" max="1" step="0.05" />
+      </section>
+
+      <section>
+        <h2>Exclude URL substrings</h2>
+        <p class="help">One per line. Matching tabs are never moved.</p>
+        <textarea id="excludePatterns" rows="5" placeholder="mail.google.com&#10;bank"></textarea>
+      </section>
+
+      <section>
+        <h2>Enabled categories</h2>
+        <div id="categories" class="cats"></div>
+      </section>
+
+      <section>
+        <label class="check">
+          <input id="distractionAtEnd" type="checkbox" />
+          Move Distraction group to the end of the tab strip
+        </label>
+      </section>
+
+      <div class="actions">
+        <button id="save" class="primary">Save settings</button>
+        <button id="clearCache" class="ghost">Clear classification cache</button>
+        <span id="saved" class="saved" hidden>Saved</span>
+      </div>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
