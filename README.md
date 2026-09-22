@@ -17,6 +17,7 @@ This adapts to whatever you have open instead of a fixed Code/PRs/CI list.
 - **Manual mode** (default): click the extension → **Sort this window**, or press `⌘⇧G` / `Ctrl⇧G`
 - **Automatic mode**: new tabs are classified shortly after they finish loading
 - Dynamic group names + find-or-create
+- **Custom groups** — add your own labels in the popup or Settings; always offered to Jev
 - Classification cache (7 days) when the cached group is still a candidate
 - Exclude URL patterns + confidence floor → **Unsorted**
 

@@ -126,6 +126,38 @@ a {
   text-decoration: none;
 }
 
+.ghost {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-group {
+  display: flex;
+  gap: 6px;
+}
+
+.add-group input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.custom-preview {
+  line-height: 1.35;
+}
+
 .hint {
   color: var(--muted);
 }

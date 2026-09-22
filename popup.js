@@ -4,10 +4,18 @@ const statusEl = document.getElementById('status');
 const runModeEl = document.getElementById('runMode');
 const sortBtn = document.getElementById('sortBtn');
 const resultEl = document.getElementById('result');
+const quickGroupEl = document.getElementById('quickGroup');
+const addGroupBtn = document.getElementById('addGroupBtn');
+const customPreviewEl = document.getElementById('customPreview');
 
 async function refreshStatus() {
   const settings = await getSettings();
   runModeEl.value = settings.runMode || 'manual';
+  const customs = settings.customGroups || [];
+  customPreviewEl.textContent = customs.length
+    ? `Custom: ${customs.join(' · ')}`
+    : 'No custom groups yet — add one above or in Settings.';
+
   if (!settings.apiKey) {
     statusEl.textContent = 'Add API key in Settings before sorting.';
     statusEl.className = 'status err';
@@ -25,6 +33,31 @@ async function refreshStatus() {
 runModeEl.addEventListener('change', async () => {
   await saveSettings({ runMode: runModeEl.value });
   await refreshStatus();
+});
+
+async function addCustomGroup() {
+  const name = quickGroupEl.value.trim();
+  if (!name) return;
+  addGroupBtn.disabled = true;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'ADD_CUSTOM_GROUP', name });
+    if (!res?.ok) throw new Error(res?.error || 'Failed to add group');
+    quickGroupEl.value = '';
+    await refreshStatus();
+  } catch (err) {
+    resultEl.hidden = false;
+    resultEl.textContent = String(err?.message || err);
+  } finally {
+    addGroupBtn.disabled = false;
+  }
+}
+
+addGroupBtn.addEventListener('click', addCustomGroup);
+quickGroupEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addCustomGroup();
+  }
 });
 
 sortBtn.addEventListener('click', async () => {

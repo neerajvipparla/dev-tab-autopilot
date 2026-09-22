@@ -11,6 +11,7 @@ import {
   saveSettings,
   matchesExclude,
   cacheKey,
+  normalizeCustomGroups,
 } from './lib/settings.js';
 
 const debounceTimers = new Map();
@@ -34,13 +35,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true, ...result });
         return;
       }
-      if (msg?.type === 'GET_STATUS') {
+      if (msg?.type === 'ADD_CUSTOM_GROUP') {
         const settings = await getSettings();
-        sendResponse({
-          ok: true,
-          runMode: settings.runMode,
-          hasKey: Boolean(settings.apiKey),
-        });
+        const name = String(msg.name || '').trim();
+        if (!name) throw new Error('Group name required');
+        const customGroups = normalizeCustomGroups([
+          ...(settings.customGroups || []),
+          name,
+        ]);
+        await saveSettings({ customGroups });
+        sendResponse({ ok: true, customGroups });
+        return;
+      }
+      if (msg?.type === 'LIST_CUSTOM_GROUPS') {
+        const settings = await getSettings();
+        sendResponse({ ok: true, customGroups: settings.customGroups || [] });
         return;
       }
       sendResponse({ ok: false, error: 'Unknown message' });
@@ -98,7 +107,7 @@ function filterTabs(tabs, excludePatterns) {
 
 async function buildWindowCandidates(windowId, tabs, settings) {
   const existingTitles = await listGroupTitles(windowId);
-  return buildCandidates(tabs, existingTitles, 18);
+  return buildCandidates(tabs, existingTitles, 18, settings.customGroups || []);
 }
 
 async function sortCurrentWindow() {

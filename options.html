@@ -10,14 +10,24 @@
     <main>
       <h1>Dev Tab Autopilot</h1>
       <p class="lead">
-        Group names are generated from your open tabs (and existing groups), then TypeSafe Jev picks the best fit per tab.
-        Your API key stays in Chrome sync storage.
+        Group names are generated from your open tabs, plus any <strong>custom groups</strong> you add.
+        TypeSafe Jev picks the best fit per tab. Your API key stays in Chrome sync storage.
       </p>
 
       <section>
         <h2>TypeSafe API key</h2>
         <p class="help">From <a href="https://console.typesafe.ai/settings/keys" target="_blank" rel="noreferrer">console.typesafe.ai/settings/keys</a>. Required for sorting.</p>
         <input id="apiKey" type="password" placeholder="apikey_…" autocomplete="off" spellcheck="false" />
+      </section>
+
+      <section>
+        <h2>Custom groups</h2>
+        <p class="help">Always offered to Jev when sorting (in addition to auto-detected names). Add things like <code>Work</code>, <code>Interview prep</code>, <code>Side project</code>.</p>
+        <div class="add-row">
+          <input id="newGroup" type="text" maxlength="48" placeholder="New group name" />
+          <button type="button" id="addGroup" class="ghost">Add</button>
+        </div>
+        <ul id="customGroupList" class="group-list"></ul>
       </section>
 
       <section>
