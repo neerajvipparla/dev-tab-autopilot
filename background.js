@@ -3,8 +3,9 @@ import {
   moveTabIntoCategory,
   applyGroupAssignments,
   clearGroupCache,
+  listGroupTitles,
 } from './lib/groups.js';
-import { CATEGORIES } from './lib/categories.js';
+import { buildCandidates, UNSORTED_TITLE } from './lib/candidates.js';
 import {
   getSettings,
   saveSettings,
@@ -16,7 +17,7 @@ const debounceTimers = new Map();
 const DEBOUNCE_MS = 500;
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Dev Tab Autopilot] installed');
+  console.log('[Dev Tab Autopilot] installed — dynamic Jev groups');
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
@@ -47,7 +48,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sendResponse({ ok: false, error: String(err?.message || err) });
     }
   })();
-  return true; // async
+  return true;
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -83,6 +84,23 @@ function scheduleAutoClassify(tabId, tab) {
   );
 }
 
+/**
+ * Eligible http(s) tabs in a window, minus excludes.
+ */
+function filterTabs(tabs, excludePatterns) {
+  return tabs.filter((tab) => {
+    if (!tab.url) return false;
+    if (tab.url.startsWith('chrome') || tab.url.startsWith('chrome-extension')) return false;
+    if (matchesExclude(tab.url, excludePatterns)) return false;
+    return true;
+  });
+}
+
+async function buildWindowCandidates(windowId, tabs, settings) {
+  const existingTitles = await listGroupTitles(windowId);
+  return buildCandidates(tabs, existingTitles, 18);
+}
+
 async function sortCurrentWindow() {
   const settings = await getSettings();
   if (!settings.apiKey) {
@@ -97,21 +115,20 @@ async function sortCurrentWindow() {
     return { counts: {}, errors: 0, total: 0 };
   }
 
+  const eligible = filterTabs(tabs, settings.excludePatterns);
+  const candidates = await buildWindowCandidates(targetWindowId, eligible, settings);
+
   /** @type {Record<string, number>} */
   const counts = {};
   let errors = 0;
   /** @type {Array<{ tab: chrome.tabs.Tab, category: string }>} */
   const assignments = [];
 
-  // 1) Classify every eligible tab (reuse cache when possible)
-  for (const tab of tabs) {
-    if (!tab.url || tab.url.startsWith('chrome') || tab.url.startsWith('chrome-extension')) {
-      continue;
-    }
-    if (matchesExclude(tab.url, settings.excludePatterns)) continue;
+  const siblings = eligible.map((t) => ({ url: t.url, title: t.title || '' }));
 
+  for (const tab of eligible) {
     try {
-      const category = await resolveCategory(tab, settings);
+      const category = await resolveCategory(tab, settings, candidates, siblings);
       assignments.push({ tab, category });
       counts[category] = (counts[category] || 0) + 1;
     } catch (err) {
@@ -120,30 +137,35 @@ async function sortCurrentWindow() {
     }
   }
 
-  // 2) Find-or-create Chrome tab groups and move tabs into them
   await applyGroupAssignments(targetWindowId, assignments, {
     distractionAtEnd: settings.distractionAtEnd,
   });
 
-  return { counts, errors, total: tabs.length };
+  return { counts, errors, total: tabs.length, groups: candidates.titles };
 }
 
 /**
- * Resolve category for a tab (Jev + cache + confidence / enabled filters).
  * @param {chrome.tabs.Tab} tab
  * @param {Awaited<ReturnType<typeof getSettings>>} settings
+ * @param {ReturnType<typeof buildCandidates>} candidates
+ * @param {Array<{ url: string, title: string }>} siblings
  */
-async function resolveCategory(tab, settings) {
-  if (!tab.url || tab.id == null) return 'unsorted';
-  if (matchesExclude(tab.url, settings.excludePatterns)) return 'unsorted';
+async function resolveCategory(tab, settings, candidates, siblings) {
+  if (!tab.url || tab.id == null) return UNSORTED_TITLE;
 
   const key = cacheKey(tab.url);
   let category;
   let confidence = 1;
 
   const cached = settings.cache?.[key];
-  // Cache 7 days
-  if (cached && Date.now() - cached.ts < 7 * 24 * 60 * 60 * 1000) {
+  const candidateSet = new Set(candidates.titles);
+  // Reuse cache only if that group is still a candidate this round
+  if (
+    cached &&
+    Date.now() - cached.ts < 7 * 24 * 60 * 60 * 1000 &&
+    cached.category &&
+    candidateSet.has(cached.category)
+  ) {
     category = cached.category;
     confidence = cached.confidence ?? 1;
   } else {
@@ -151,13 +173,15 @@ async function resolveCategory(tab, settings) {
       apiKey: settings.apiKey,
       url: tab.url,
       title: tab.title || '',
+      criteria: candidates.criteria,
+      slugToTitle: candidates.slugToTitle,
+      siblingTabs: siblings.filter((s) => s.url !== tab.url),
     });
     category = result.category;
     confidence = result.confidence;
 
     const cache = { ...(settings.cache || {}) };
     cache[key] = { category, confidence, ts: Date.now() };
-    // Bound cache size
     const keys = Object.keys(cache);
     if (keys.length > 500) {
       keys
@@ -169,24 +193,25 @@ async function resolveCategory(tab, settings) {
   }
 
   if (confidence < settings.minConfidence) {
-    category = 'unsorted';
-  } else if (category !== 'unsorted' && settings.enabledCategories?.[category] === false) {
-    category = 'other';
-  } else if (category !== 'unsorted' && !CATEGORIES[category]) {
-    category = 'other';
+    return UNSORTED_TITLE;
   }
-
+  if (!candidateSet.has(category)) {
+    return UNSORTED_TITLE;
+  }
   return category;
 }
 
-/**
- * Classify one tab and move it into a Chrome tab group (create group if needed).
- * Used by automatic mode.
- */
 async function classifyAndMove(tab, settings) {
-  const category = await resolveCategory(tab, settings);
+  if (!tab.url || tab.windowId == null) return UNSORTED_TITLE;
+
+  const tabs = await chrome.tabs.query({ windowId: tab.windowId });
+  const eligible = filterTabs(tabs, settings.excludePatterns);
+  const candidates = await buildWindowCandidates(tab.windowId, eligible, settings);
+  const siblings = eligible.map((t) => ({ url: t.url, title: t.title || '' }));
+
+  const category = await resolveCategory(tab, settings, candidates, siblings);
   await moveTabIntoCategory(tab, category, {
-    distractionAtEnd: settings.distractionAtEnd,
+    pinDistractionStyle: settings.distractionAtEnd,
   });
   return category;
 }

@@ -9,7 +9,10 @@
   <body>
     <main>
       <h1>Dev Tab Autopilot</h1>
-      <p class="lead">Local Chrome extension. Classification via TypeSafe Jev. Your API key stays in Chrome sync storage.</p>
+      <p class="lead">
+        Group names are generated from your open tabs (and existing groups), then TypeSafe Jev picks the best fit per tab.
+        Your API key stays in Chrome sync storage.
+      </p>
 
       <section>
         <h2>TypeSafe API key</h2>
@@ -36,14 +39,9 @@
       </section>
 
       <section>
-        <h2>Enabled categories</h2>
-        <div id="categories" class="cats"></div>
-      </section>
-
-      <section>
         <label class="check">
           <input id="distractionAtEnd" type="checkbox" />
-          Move Distraction group to the end of the tab strip
+          Move distraction-like groups (YouTube, Reddit, …) to the end of the tab strip
         </label>
       </section>
 

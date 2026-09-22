@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Dev Tab Autopilot",
-  "version": "0.1.0",
-  "description": "Sort your tabs into Code, PRs, CI, Docs and more — powered by TypeSafe Jev.",
+  "version": "0.2.0",
+  "description": "Sort tabs into auto-named Chrome groups with TypeSafe Jev.",
   "permissions": ["tabs", "tabGroups", "storage"],
   "host_permissions": ["https://api.typesafe.ai/*"],
   "background": {
