@@ -5,25 +5,37 @@ import {
   clearGroupCache,
   listGroupTitles,
 } from './lib/groups.js';
-import { buildCandidates, UNSORTED_TITLE } from './lib/candidates.js';
+import { buildCandidates, subForParent, UNSORTED_TITLE } from './lib/candidates.js';
 import {
   getSettings,
   saveSettings,
   matchesExclude,
   cacheKey,
   normalizeCustomGroups,
+  getCache,
+  mergeCache,
 } from './lib/settings.js';
 
 const debounceTimers = new Map();
 const DEBOUNCE_MS = 500;
 
+/** Sorts and auto-moves run one at a time so parallel runs can't create duplicate groups */
+let queue = Promise.resolve();
+function enqueue(fn) {
+  const run = queue.then(fn);
+  queue = run.catch(() => {});
+  return run;
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Dev Tab Autopilot] installed — dynamic Jev groups');
+  // Older versions kept the classification cache in sync storage (quota-limited)
+  chrome.storage.sync.remove('cache').catch(() => {});
+  console.log('[Dev Tab Autopilot] installed — parent groups with subgroups');
 });
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === 'sort-tabs') {
-    await sortCurrentWindow();
+    await enqueue(sortCurrentWindow);
   }
 });
 
@@ -31,7 +43,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     try {
       if (msg?.type === 'SORT_WINDOW') {
-        const result = await sortCurrentWindow();
+        const result = await enqueue(sortCurrentWindow);
         sendResponse({ ok: true, ...result });
         return;
       }
@@ -85,7 +97,11 @@ function scheduleAutoClassify(tabId, tab) {
       const fresh = await chrome.tabs.get(tabId).catch(() => null);
       if (!fresh?.url || fresh.url.startsWith('chrome')) return;
       try {
-        await classifyAndMove(fresh, settings);
+        await enqueue(async () => {
+          // Re-read: the tab may have moved or closed while queued
+          const current = await chrome.tabs.get(tabId).catch(() => null);
+          if (current?.url && !current.url.startsWith('chrome')) await classifyAndMove(current, settings);
+        });
       } catch (err) {
         console.warn('[Dev Tab Autopilot] auto classify failed', err);
       }
@@ -108,6 +124,12 @@ function filterTabs(tabs, excludePatterns) {
 async function buildWindowCandidates(windowId, tabs, settings) {
   const existingTitles = await listGroupTitles(windowId);
   return buildCandidates(tabs, existingTitles, 18, settings.customGroups || []);
+}
+
+/** Subgroup lookup for tabs inside a parent group (custom groups have none) */
+function makeSubForTab(settings) {
+  const customSet = new Set(settings.customGroups || []);
+  return (tab, parent) => subForParent(tab, parent, customSet);
 }
 
 async function sortCurrentWindow() {
@@ -134,10 +156,11 @@ async function sortCurrentWindow() {
   const assignments = [];
 
   const siblings = eligible.map((t) => ({ url: t.url, title: t.title || '' }));
+  const cache = await getCache();
 
   for (const tab of eligible) {
     try {
-      const category = await resolveCategory(tab, settings, candidates, siblings);
+      const category = await resolveCategory(tab, settings, candidates, siblings, cache);
       assignments.push({ tab, category });
       counts[category] = (counts[category] || 0) + 1;
     } catch (err) {
@@ -148,6 +171,7 @@ async function sortCurrentWindow() {
 
   await applyGroupAssignments(targetWindowId, assignments, {
     distractionAtEnd: settings.distractionAtEnd,
+    subForTab: makeSubForTab(settings),
   });
 
   return { counts, errors, total: tabs.length, groups: candidates.titles };
@@ -158,15 +182,17 @@ async function sortCurrentWindow() {
  * @param {Awaited<ReturnType<typeof getSettings>>} settings
  * @param {ReturnType<typeof buildCandidates>} candidates
  * @param {Array<{ url: string, title: string }>} siblings
+ * @param {Awaited<ReturnType<typeof getCache>>} cache snapshot; new entries are merged into storage
+ * @returns {Promise<string>} parent group title
  */
-async function resolveCategory(tab, settings, candidates, siblings) {
+async function resolveCategory(tab, settings, candidates, siblings, cache) {
   if (!tab.url || tab.id == null) return UNSORTED_TITLE;
 
   const key = cacheKey(tab.url);
   let category;
   let confidence = 1;
 
-  const cached = settings.cache?.[key];
+  const cached = cache[key];
   const candidateSet = new Set(candidates.titles);
   // Reuse cache only if that group is still a candidate this round
   if (
@@ -189,16 +215,9 @@ async function resolveCategory(tab, settings, candidates, siblings) {
     category = result.category;
     confidence = result.confidence;
 
-    const cache = { ...(settings.cache || {}) };
-    cache[key] = { category, confidence, ts: Date.now() };
-    const keys = Object.keys(cache);
-    if (keys.length > 500) {
-      keys
-        .sort((a, b) => (cache[a].ts || 0) - (cache[b].ts || 0))
-        .slice(0, keys.length - 400)
-        .forEach((k) => delete cache[k]);
-    }
-    await saveSettings({ cache });
+    const entry = { category, confidence, ts: Date.now() };
+    cache[key] = entry;
+    await mergeCache({ [key]: entry });
   }
 
   if (confidence < settings.minConfidence) {
@@ -218,9 +237,10 @@ async function classifyAndMove(tab, settings) {
   const candidates = await buildWindowCandidates(tab.windowId, eligible, settings);
   const siblings = eligible.map((t) => ({ url: t.url, title: t.title || '' }));
 
-  const category = await resolveCategory(tab, settings, candidates, siblings);
+  const category = await resolveCategory(tab, settings, candidates, siblings, await getCache());
   await moveTabIntoCategory(tab, category, {
     pinDistractionStyle: settings.distractionAtEnd,
+    subForTab: makeSubForTab(settings),
   });
   return category;
 }

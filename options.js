@@ -1,4 +1,4 @@
-import { getSettings, saveSettings, normalizeCustomGroups } from './lib/settings.js';
+import { getSettings, saveSettings, normalizeCustomGroups, clearCache } from './lib/settings.js';
 
 const apiKeyEl = document.getElementById('apiKey');
 const minConfidenceEl = document.getElementById('minConfidence');
@@ -85,7 +85,7 @@ document.getElementById('save').addEventListener('click', async () => {
 });
 
 document.getElementById('clearCache').addEventListener('click', async () => {
-  await saveSettings({ cache: {} });
+  await clearCache();
   savedEl.textContent = 'Cache cleared';
   savedEl.hidden = false;
   setTimeout(() => {
